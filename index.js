@@ -2,6 +2,7 @@
 
 const fs = require('fs');
 const http = require('http');
+
 function handle(err, req, res, next) {
     if (!err) return next(err);
 
@@ -11,19 +12,20 @@ function handle(err, req, res, next) {
     if (res.statusCode < 400) {
         res.statusCode = 500;
     }
-    if (err instanceof EvalError || 
-        err instanceof RangeError || 
-        err instanceof ReferenceError || 
-        err instanceof SyntaxError || 
-        err instanceof TypeError || 
-        err instanceof URIError || 
+    if (err instanceof EvalError ||
+        err instanceof RangeError ||
+        err instanceof ReferenceError ||
+        err instanceof SyntaxError ||
+        err instanceof TypeError ||
+        err instanceof URIError ||
         /^(EvalError|Range|Reference|Syntax|Type|URI)Error/.test(err.message)) {
         res.statusCode = 500;
     }
-    if (res.statusCode >= 500) {
+    res.statusCode = err.statusCode || res.statusCode;
+    res.statusCode = res.statusCode || 500;
+    if (res.statusCode == 400 || res.statusCode >= 500) {
         console.error('[HTTP STATUS: ' + res.statusCode + ']', err.stack);
     }
-    res.statusCode = err.statusCode || res.statusCode;
     let statusMessage = http.STATUS_CODES[res.statusCode];
     let data = {
         statusCode: res.statusCode,
@@ -35,7 +37,9 @@ function handle(err, req, res, next) {
 
     let debug = (res.statusCode >= 500) && req.query.__debug__;
     debug = debug || this.config.debug;
-    if (res.statusCode < 500) { data.color = '#A93000'; }
+    if (res.statusCode < 500) {
+        data.color = '#A93000';
+    }
     if (req.requestType && req.requestType.toUpperCase() === 'AJAX' && res.apiRender) {
         const common = require('bootjs-common');
         let apiResp = new common.ApiResponse();
@@ -60,19 +64,21 @@ function handle(err, req, res, next) {
     }
 
     let ejsBaseDir = __dirname + '/ejs/';
-    let debugDir = debug? 'debug/': '';
-    let viewFile = ejsBaseDir + debugDir + res.statusCode +'.ejs';
+    let debugDir = debug ? 'debug/' : '';
+    let viewFile = ejsBaseDir + debugDir + res.statusCode + '.ejs';
     if (!fs.existsSync(viewFile)) {
         viewFile = ejsBaseDir + debugDir + 'error.ejs';
     }
     res.render(viewFile, data);
 }
 
-module.exports = function (config) {
+module.exports = function(config) {
     config = config || {
         appName: 'Your Application',
         debug: true,
     };
-    let handler = {config: config};
+    let handler = {
+        config: config
+    };
     return [handle.bind(handler)];
 };
